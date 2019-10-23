@@ -60,7 +60,7 @@ class DDPG(object):
 
         self.sess = tf.Session()
         tf.keras.backend.set_session(self.sess)
-        raise NotImplementedError
+        self.Critic = CriticNetwork(sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
 
     def evaluate(self, num_episodes):
         """Evaluate the policy. Noise is not added during evaluation.
