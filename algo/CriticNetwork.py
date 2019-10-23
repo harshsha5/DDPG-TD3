@@ -1,6 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Input, Concatenate
 from tensorflow.keras.optimizers import Adam
+from keras.models import Sequential
+from keras.layers import Activation,BatchNormalization
+from tensorboardX import SummaryWriter
+from keras import backend as K
 
 HIDDEN1_UNITS = 400
 HIDDEN2_UNITS = 400
@@ -18,7 +22,11 @@ def create_critic_network(state_size, action_size, learning_rate):
         state_input: a tf.placeholder for the batched state.
         action_input: a tf.placeholder for the batched action.
     """
-    raise NotImplementedError
+    state_input = tf.placeholder("int",[None,state_size])
+    action_input = tf.placeholder("float",[None,action_size])
+    x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)([state_input, action_input])  #VALIDATE
+    x_2 = tf.keras.layers.Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)
+    value = tf.keras.layers.Dense(1, activation=tf.nn.linear)(x_2)
     model = tf.keras.Model(inputs=[state_input, action_input], outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))
     return model, state_input, action_input
@@ -39,9 +47,12 @@ class CriticNetwork(object):
             tau: (float) the target net update rate.
             learning_rate: (float) learning rate for the critic.
         """
-        raise NotImplementedError
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
+        self.tau = tau
+        model, _, _ = create_critic_network(state_size,action_size,learning_rate)
+        self.network = model
+        self.target_network = self.network
 
     def gradients(self, states, actions):
         """Computes dQ(s, a) / da.
@@ -58,4 +69,4 @@ class CriticNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        raise NotImplementedError
+        self.target_network = self.tau*self.network + (1-self.tau)*self.target_network

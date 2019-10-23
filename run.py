@@ -5,8 +5,13 @@ from algo.ddpg import DDPG
 
 def main():
     env = gym.make('Pushing2D-v0')
-    algo = DDPG(env, 'ddpg_log.txt')
-    algo.train(50000, hindsight=False)
+    print(env.action_space.sample())
+    num_states = env.observation_space.shape[0]
+    num_actions = env.action_space.n
+    print("Number of states: ",num_states)
+    print("Number of actions: ",num_actions)
+    # algo = DDPG(env, 'ddpg_log.txt')
+    # algo.train(50000, hindsight=False)
 
 
 if __name__ == '__main__':
