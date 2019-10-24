@@ -31,11 +31,9 @@ class Pusher2d(gym.Env):
         self.pusher = None
         self.box = None
         #Actions: x-movement, y-movement (clipped -1 to 1)
-        self.action_space = spaces.Box(np.ones(2) * -1, \
-                                       np.ones(2), dtype=np.float32)
+        self.action_space = spaces.Box(np.ones(2) * -1,np.ones(2), dtype=np.float32)
         #State: x-pusher, y-pusher, x-box, y-box, x-goal, y-goal
-        self.observation_space = spaces.Box(np.ones(6) * MIN_COORD, \
-                                            np.ones(6) * MAX_COORD, dtype=np.float32)
+        self.observation_space = spaces.Box(np.ones(6) * MIN_COORD,np.ones(6) * MAX_COORD, dtype=np.float32)
         self.reset()
 
     def seed(self, seed=None):

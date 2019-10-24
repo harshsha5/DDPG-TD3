@@ -47,12 +47,13 @@ class CriticNetwork(object):
             tau: (float) the target net update rate.
             learning_rate: (float) learning rate for the critic.
         """
-        self.sess = sess
-        self.sess.run(tf.initialize_all_variables())
         self.tau = tau
         model, _, _ = create_critic_network(state_size,action_size,learning_rate)
-        self.network = model
-        self.target_network = self.network
+        self.critic_network = model
+        self.target_critic_network = self.critic_network
+
+        self.sess = sess
+        self.sess.run(tf.initialize_all_variables())
 
     def gradients(self, states, actions):
         """Computes dQ(s, a) / da.
@@ -69,4 +70,4 @@ class CriticNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        self.target_network = self.tau*self.network + (1-self.tau)*self.target_network
+        self.target_critic_network = self.tau*self.critic_network + (1-self.tau)*self.target_critic_network

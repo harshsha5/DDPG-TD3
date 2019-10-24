@@ -35,7 +35,11 @@ class ActorNetwork(object):
             tau: (float) the target net update rate.
             learning_rate: (float) learning rate for the critic.
         """
-        raise NotImplementedError
+        self.tau = tau
+        model, _ = create_actor_network(state_size,action_size)
+        self.actor_network = model
+        self.target_actor_network = self.actor_network
+
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
 
@@ -52,4 +56,4 @@ class ActorNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        raise NotImplementedError
+        self.target_actor_network = self.tau*self.actor_network + (1-self.tau)*self.target_actor_network
