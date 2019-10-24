@@ -66,7 +66,11 @@ class CriticNetwork(object):
         Returns:
             grads: a batched numpy array storing the gradients.
         """
-        raise NotImplementedError
+        with tf.GradientTape() as t:
+            t.watch(actions)
+            Q = self.critic_network.predict([states, actions])
+        return t.gradient(Q, actions)[0]
+
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
