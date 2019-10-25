@@ -147,16 +147,15 @@ class DDPG(object):
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
                 action = self.ActionNoise(self.Actor.actor_network.predict(s_t[None])[0])
-                ipdb.set_trace()
                 new_state, reward, done, info  = self.env.step(action)
                 new_state = np.array(new_state)
                 self.buffer.add(s_t,action,reward,new_state,done)
-                transition_minibatch = self.buffer.get_batch(self.batch_size)
+                transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
+                target_actions = self.Actor.target_actor_network.predict(transition_minibatch[:,3][0][None])
                 ipdb.set_trace()
-                target_actions = self.Actor.target_actor_network.predict([transition_minibatch[:,3]])
-                target_Qs = self.CriticNetwork.target_critic_network.predict([transition_minibatch[:,3],target_actions])
+                target_Qs = self.Critic.target_critic_network.predict(transition_minibatch[:,3][0][None],target_actions)
                 target_values = transition_minibatch[:,2] + GAMMA*target_Qs
-                present_values = self.CriticNetwork.critic_network.predict([transition_minibatch[:,0],transition_minibatch[:,1]])
+                present_values = self.Critic.critic_network.predict([transition_minibatch[:,0],transition_minibatch[:,1]])
                 self.CriticNetwork.critic_network.fit(present_values,target_values,epochs=1)
                 #Update Actor Policy
                 self.CriticNetwork.update_target()
