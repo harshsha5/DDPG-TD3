@@ -16,8 +16,8 @@ def create_actor_network(state_size, action_size):
         model: an instance of tf.keras.Model.
         state_input: a tf.placeholder for the batched state.
     """
-    # state_input = Input(shape=[state_size])                       #I commented some already given code. See if doing this is fair
-    state_input = tf.placeholder("float",[None,state_size])
+    state_input = Input(shape=[state_size])                       #I commented some already given code. See if doing this is fair
+    # state_input = tf.placeholder("float",[None,state_size])
     x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)(state_input)  #VALIDATE
     x_2 = tf.keras.layers.Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)          # See if adding Batch normalization helps
     value = tf.keras.layers.Dense(action_size, activation=tf.nn.tanh)(x_2)                  # Add some weight initilization say Xavier
@@ -45,6 +45,7 @@ class ActorNetwork(object):
         model, _ = create_actor_network(state_size,action_size)
         self.actor_network = model
         self.target_actor_network = self.actor_network
+        self.batch_size = batch_size
 
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
@@ -62,7 +63,7 @@ class ActorNetwork(object):
             t.watch(states)
             mu = self.actor_network.predict([states])
         policy_grads = t.gradient(mu, states)[0]
-        grad_J = (1/action_grads.shape[0]) * tf.reduce_sum(policy_grads*action_grads)           #SEE FINAL UPDATE HERE
+        grad_J = (1/self.batch_size) * tf.reduce_sum(policy_grads*action_grads)           #SEE FINAL UPDATE HERE
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""

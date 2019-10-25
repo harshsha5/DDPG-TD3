@@ -22,12 +22,15 @@ def create_critic_network(state_size, action_size, learning_rate):
         state_input: a tf.placeholder for the batched state.
         action_input: a tf.placeholder for the batched action.
     """
-    state_input = tf.placeholder("float",[None,state_size])
-    action_input = tf.placeholder("float",[None,action_size])
-    x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)([state_input, action_input])  #VALIDATE
+    # state_input = tf.placeholder("float",[None,state_size])
+    # action_input = tf.placeholder("float",[None,action_size])
+    state_input = Input(shape=[None,state_size]) 
+    action_input = Input(shape=[None,action_size]) 
+    combined_input= Concatenate()([state_input, action_input])
+    x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)(combined_input)  #VALIDATE
     x_2 = tf.keras.layers.Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)          # See if adding Batch normalization helps
     value = tf.keras.layers.Dense(1, activation=tf.nn.linear)(x_2)                  # Add some weight initilization say Xavier
-    model = tf.keras.Model(inputs=[state_input, action_input], outputs=value)
+    model = tf.keras.Model(inputs=combined_input, outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))
     return model, state_input, action_input
 

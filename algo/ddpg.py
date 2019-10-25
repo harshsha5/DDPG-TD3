@@ -12,6 +12,7 @@ GAMMA = 0.98                    # Discount for rewards.
 TAU = 0.05                      # Target network update rate.
 LEARNING_RATE_ACTOR = 0.0001
 LEARNING_RATE_CRITIC = 0.001
+MU = 0
 
 
 class EpsilonNormalActionNoise(object):
@@ -60,7 +61,9 @@ class DDPG(object):
 
         self.sess = tf.Session()
         tf.keras.backend.set_session(self.sess)
-        self.Critic = CriticNetwork(sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
+        self.buffer = ReplayBuffer(BUFFER_SIZE)
+        self.Critic = CriticNetwork(self.sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
+        self.Actor = ActorNetwork(self.sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
 
     def evaluate(self, num_episodes):
         """Evaluate the policy. Noise is not added during evaluation.
@@ -135,7 +138,7 @@ class DDPG(object):
             while not done:
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
-                raise NotImplementedError
+                
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
