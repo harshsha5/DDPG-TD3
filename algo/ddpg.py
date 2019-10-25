@@ -14,6 +14,7 @@ TAU = 0.05                      # Target network update rate.
 LEARNING_RATE_ACTOR = 0.0001
 LEARNING_RATE_CRITIC = 0.001
 NOISE_MU = 0
+NOISE_SIGMA = 0.05
 EPSILON = 0.2
 
 
@@ -67,8 +68,8 @@ class DDPG(object):
         self.batch_size = BATCH_SIZE
         self.buffer = ReplayBuffer(BUFFER_SIZE)
         self.Critic = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
-        self.Noise_sigma = 0.05*(env.action_space.high[0] - env.action_space.low[0])
-        self.ActionNoise = EpsilonNormalActionNoise(NOISE_MU,self.Noise_sigma,EPSILON)
+        self.noise_mu = NOISE_MU
+        self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
 
     def evaluate(self, num_episodes):
@@ -141,10 +142,11 @@ class DDPG(object):
             loss = 0
             store_states = []
             store_actions = []
+            self.ActionNoise = EpsilonNormalActionNoise(self.noise_mu,self.Noise_sigma,EPSILON)
             while not done:
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
-                action = self.ActionNoise(self.Actor.predict(s_t))
+                action = self.ActionNoise(self.Actor.actor_network.predict(s_t))
                 ipdb.set_trace()
                 new_state, reward, done  = env.step(action)
                 new_state = np.array(new_state)
