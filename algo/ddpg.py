@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from .ReplayBuffer import ReplayBuffer
 from .ActorNetwork import ActorNetwork
 from .CriticNetwork import CriticNetwork
-import ipdb
 
 BUFFER_SIZE = 1000000
 BATCH_SIZE = 1024
@@ -169,15 +168,14 @@ class DDPG(object):
                 self.buffer.add(s_t,action,reward,new_state,done)
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
                 target_actions = self.Actor.target_actor_network.predict(transition_minibatch[:,3][0][None])
-                ipdb.set_trace()
-                target_Qs = self.Critic.target_critic_network.predict(transition_minibatch[:,3][0][None],target_actions)
-                target_values = transition_minibatch[:,2] + GAMMA*target_Qs
-                present_values = self.Critic.critic_network.predict([transition_minibatch[:,0],transition_minibatch[:,1]])
-                self.CriticNetwork.critic_network.fit(present_values,target_values,epochs=1)
+
+                target_Qs = self.Critic.target_critic_network.predict([transition_minibatch[:,3][0][None],target_actions])
+                target_values = transition_minibatch[:,2][None] + GAMMA*target_Qs
+                # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
+                history = self.Critic.critic_network.fit([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]],target_values,epochs=1)
                 #Update Actor Policy
-                self.CriticNetwork.update_target()
-                self.ActorNetwork.update_target()
-                ipdb.set_trace()
+                self.Critic.update_target()
+                self.Actor.update_target()
 
             if hindsight:
                 # For HER, we also want to save the final next_state.

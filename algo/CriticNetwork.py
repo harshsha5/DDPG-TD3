@@ -80,4 +80,4 @@ class CriticNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        self.target_critic_network.set_weights(self.tau*self.critic_network.get_weights() + (1-self.tau)*self.target_critic_network.get_weights())
+        self.target_critic_network.set_weights([ tau * x + (1 - tau)*y for x,y,tau in zip(self.critic_network.get_weights(), self.target_critic_network.get_weights(), [self.tau]*len(self.critic_network.get_weights()))])

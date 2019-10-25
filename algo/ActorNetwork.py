@@ -72,4 +72,4 @@ class ActorNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        self.target_actor_network.set_weights(self.tau*self.actor_network.get_weights() + (1-self.tau)*self.target_actor_network.get_weights())
+        self.target_actor_network.set_weights([ tau * x + (1 - tau)*y for x,y,tau in zip(self.actor_network.get_weights(), self.target_actor_network.get_weights(), [self.tau]*len(self.actor_network.get_weights()))])
