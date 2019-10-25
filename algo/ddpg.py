@@ -16,7 +16,7 @@ LEARNING_RATE_CRITIC = 0.001
 NOISE_MU = 0
 NOISE_SIGMA = 0.05
 EPSILON = 0.2
-
+BURN_IN_MEMORY = 5000
 
 
 class EpsilonNormalActionNoise(object):
@@ -67,10 +67,27 @@ class DDPG(object):
         tf.keras.backend.set_session(self.sess)
         self.batch_size = BATCH_SIZE
         self.buffer = ReplayBuffer(BUFFER_SIZE)
+        self.burn_in_memory_size = BURN_IN_MEMORY
         self.Critic = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
+
+    def generate_burn_in(self):
+        num_actions = self.env.action_space.shape[0]
+        state = self.env.reset()
+        state = np.array(state)
+        done = False       
+        for i in range(self.burn_in_memory_size):
+            action = np.random.uniform(-1.0, 1.0, size=num_actions)         #Randomly generating actions for the buffer burn_in
+            new_state, reward, done, info  = self.env.step(action)
+            new_state = np.array(new_state)
+            self.buffer.add(state,action,reward,new_state,done)
+            if(done):
+                state = self.env.reset()
+                state = np.array(state)
+                done = False 
+            state = new_state
 
     def evaluate(self, num_episodes):
         """Evaluate the policy. Noise is not added during evaluation.
@@ -132,7 +149,7 @@ class DDPG(object):
             num_episodes: (int) Number of training episodes.
             hindsight: (bool) Whether to use HER.
         """
-
+        self.generate_burn_in()
         for i in range(num_episodes):
             state = self.env.reset()
             s_t = np.array(state)
