@@ -3,6 +3,7 @@ from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 from keras.activations import relu, linear, tanh
+from keras.initializers import RandomUniform
 
 HIDDEN1_UNITS = 400
 HIDDEN2_UNITS = 400
@@ -18,13 +19,12 @@ def create_actor_network(state_size, action_size):
         model: an instance of tf.keras.Model.
         state_input: a tf.placeholder for the batched state.
     """
-    state_input = Input(shape=(state_size,))                       #I commented some already given code. See if doing this is fair
-    # state_input = tf.placeholder("float",[None,state_size])
-    x_1 = Dense(HIDDEN1_UNITS, activation=relu)(state_input)  #VALIDATE
+    state_input = Input(shape=(state_size,))                       
+    x_1 = Dense(HIDDEN1_UNITS, activation=relu)(state_input)  
     x_2 = Dense(HIDDEN2_UNITS, activation=relu)(x_1)          # See if adding Batch normalization helps
     value = Dense(action_size, activation=tanh,kernel_initializer = RandomUniform(minval=-0.003, maxval=0.003, seed=None),bias_initializer=RandomUniform(minval=-0.003, maxval=0.003, seed=None))(x_2)                  # Add some weight initilization say Xavier
-    model = tf.keras.Model(inputs=state_input, outputs=value)
-    model.compile(loss="mse", optimizer=Adam(lr=learning_rate))         #CHANGE THIS LOSS
+    model = tf.keras.Model(inputs=state_input, outputs=value)   #See if action needs to be scaled to action bound
+#    model.compile(loss="mse", optimizer=Adam(lr=learning_rate))         #CHANGE THIS LOSS
     return model, state_input
 
 

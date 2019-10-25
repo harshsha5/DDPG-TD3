@@ -24,12 +24,10 @@ def create_critic_network(state_size, action_size, learning_rate):
         state_input: a tf.placeholder for the batched state.
         action_input: a tf.placeholder for the batched action.
     """
-    # state_input = tf.placeholder("float",[None,state_size])
-    # action_input = tf.placeholder("float",[None,action_size])
     state_input = Input(shape=(state_size,))
     action_input = Input(shape=(action_size,)) 
     combined_input= Concatenate()([state_input, action_input])
-    x_1 = Dense(HIDDEN1_UNITS, activation=relu)(combined_input)  #VALIDATE
+    x_1 = Dense(HIDDEN1_UNITS, activation=relu)(combined_input)  
     x_2 = Dense(HIDDEN2_UNITS, activation=relu)(x_1)          # See if adding Batch normalization helps
     value = Dense(1, activation=linear,kernel_initializer = RandomUniform(minval=-0.0003, maxval=0.0003, seed=None),bias_initializer=RandomUniform(minval=-0.0003, maxval=0.0003, seed=None))(x_2)                  # Add some weight initilization say Xavier
     model = tf.keras.Model(inputs=[state_input, action_input], outputs=value)
@@ -62,7 +60,6 @@ class CriticNetwork(object):
 
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
-        import pdb; pdb.set_trace()
 
     def gradients(self, states, actions):
         """Computes dQ(s, a) / da.

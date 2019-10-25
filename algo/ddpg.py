@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from .ReplayBuffer import ReplayBuffer
 from .ActorNetwork import ActorNetwork
 from .CriticNetwork import CriticNetwork
+import ipdb
 
 BUFFER_SIZE = 1000000
 BATCH_SIZE = 1024
@@ -12,7 +13,9 @@ GAMMA = 0.98                    # Discount for rewards.
 TAU = 0.05                      # Target network update rate.
 LEARNING_RATE_ACTOR = 0.0001
 LEARNING_RATE_CRITIC = 0.001
-MU = 0
+NOISE_MU = 0
+EPSILON = 0.2
+
 
 
 class EpsilonNormalActionNoise(object):
@@ -61,9 +64,12 @@ class DDPG(object):
 
         self.sess = tf.Session()
         tf.keras.backend.set_session(self.sess)
+        self.batch_size = BATCH_SIZE
         self.buffer = ReplayBuffer(BUFFER_SIZE)
-        self.Critic = CriticNetwork(self.sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
-        self.Actor = ActorNetwork(self.sess,state_dim,action_dim,BATCH_SIZE,TAU,LEARNING_RATE_CRITIC)
+        self.Critic = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
+        self.Noise_sigma = 0.05*(env.action_space.high[0] - env.action_space.low[0])
+        self.ActionNoise = EpsilonNormalActionNoise(NOISE_MU,self.Noise_sigma,EPSILON)
+        self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
 
     def evaluate(self, num_episodes):
         """Evaluate the policy. Noise is not added during evaluation.
@@ -136,10 +142,23 @@ class DDPG(object):
             store_states = []
             store_actions = []
             while not done:
-                pass
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
-                
+                action = self.ActionNoise(self.Actor.predict(s_t))
+                ipdb.set_trace()
+                new_state, reward, done  = env.step(action)
+                new_state = np.array(new_state)
+                self.buffer.add(s_t,action,reward,new_state,done)
+                transition_minibatch = self.buffer.get_batch(self.batch_size)
+                target_actions = self.ActorNetwork.target_actor_network.predict(transition_minibatch[:,3])
+                target_Qs = self.CriticNetwork.target_critic_network.predict([transition_minibatch[:,3],target_actions])
+                target_values = transition_minibatch[:,2] + GAMMA*target_Qs
+                present_values = self.CriticNetwork.critic_network.predict([transition_minibatch[:,0],transition_minibatch[:,1]])
+                self.CriticNetwork.critic_network.fit(present_values,target_values,epochs=1)
+                #Update Actor Policy
+                self.CriticNetwork.update_target()
+                self.ActorNetwork.update_target()
+                ipdb.set_trace()
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
