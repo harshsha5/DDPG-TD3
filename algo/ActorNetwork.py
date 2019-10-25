@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras import Model
+from keras.activations import relu, linear, tanh
 
 HIDDEN1_UNITS = 400
 HIDDEN2_UNITS = 400
@@ -16,11 +17,11 @@ def create_actor_network(state_size, action_size):
         model: an instance of tf.keras.Model.
         state_input: a tf.placeholder for the batched state.
     """
-    state_input = Input(shape=[state_size])                       #I commented some already given code. See if doing this is fair
+    state_input = Input(shape=(state_size,))                       #I commented some already given code. See if doing this is fair
     # state_input = tf.placeholder("float",[None,state_size])
-    x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)(state_input)  #VALIDATE
-    x_2 = tf.keras.layers.Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)          # See if adding Batch normalization helps
-    value = tf.keras.layers.Dense(action_size, activation=tf.nn.tanh)(x_2)                  # Add some weight initilization say Xavier
+    x_1 = Dense(HIDDEN1_UNITS, activation=relu)(state_input)  #VALIDATE
+    x_2 = Dense(HIDDEN2_UNITS, activation=relu)(x_1)          # See if adding Batch normalization helps
+    value = Dense(action_size, activation=tanh)(x_2)                  # Add some weight initilization say Xavier
     model = tf.keras.Model(inputs=state_input, outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))         #CHANGE THIS LOSS
     return model, state_input
@@ -44,7 +45,10 @@ class ActorNetwork(object):
         self.tau = tau
         model, _ = create_actor_network(state_size,action_size)
         self.actor_network = model
-        self.target_actor_network = self.actor_network
+
+        target_model, _ = create_actor_network(state_size,action_size)
+        self.target_actor_network = target_model
+        self.target_actor_network.set_weights(self.actor_network.get_weights())
         self.batch_size = batch_size
 
         self.sess = sess
@@ -67,4 +71,4 @@ class ActorNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        self.target_actor_network = self.tau*self.actor_network + (1-self.tau)*self.target_actor_network
+        self.target_actor_network.set_weights(self.tau*self.actor_network.get_weights() + (1-self.tau)*self.target_actor_network.get_weights())
