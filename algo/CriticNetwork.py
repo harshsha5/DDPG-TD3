@@ -3,6 +3,7 @@ from tensorflow.keras.layers import Dense, Input, Concatenate
 from tensorflow.keras.optimizers import Adam
 from keras.models import Sequential
 from keras.activations import relu, linear
+from keras.initializers import RandomUniform
 from keras.layers import Activation,BatchNormalization
 from tensorboardX import SummaryWriter
 from keras import backend as K
@@ -30,7 +31,7 @@ def create_critic_network(state_size, action_size, learning_rate):
     combined_input= Concatenate()([state_input, action_input])
     x_1 = Dense(HIDDEN1_UNITS, activation=relu)(combined_input)  #VALIDATE
     x_2 = Dense(HIDDEN2_UNITS, activation=relu)(x_1)          # See if adding Batch normalization helps
-    value = Dense(1, activation=linear)(x_2)                  # Add some weight initilization say Xavier
+    value = Dense(1, activation=linear,kernel_initializer = RandomUniform(minval=-0.0003, maxval=0.0003, seed=None),bias_initializer=RandomUniform(minval=-0.0003, maxval=0.0003, seed=None))(x_2)                  # Add some weight initilization say Xavier
     model = tf.keras.Model(inputs=[state_input, action_input], outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))
     return model, state_input, action_input
