@@ -27,9 +27,9 @@ def create_critic_network(state_size, action_size, learning_rate):
     state_input = Input(shape=[None,state_size]) 
     action_input = Input(shape=[None,action_size]) 
     combined_input= Concatenate()([state_input, action_input])
-    x_1 = tf.keras.layers.Dense(HIDDEN1_UNITS, activation=tf.nn.relu)(combined_input)  #VALIDATE
-    x_2 = tf.keras.layers.Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)          # See if adding Batch normalization helps
-    value = tf.keras.layers.Dense(1, activation=tf.nn.linear)(x_2)                  # Add some weight initilization say Xavier
+    x_1 = Dense(HIDDEN1_UNITS, activation=tf.nn.relu)(combined_input)  #VALIDATE
+    x_2 = Dense(HIDDEN2_UNITS, activation=tf.nn.relu)(x_1)          # See if adding Batch normalization helps
+    value = Dense(1, activation=tf.nn.linear)(x_2)                  # Add some weight initilization say Xavier
     model = tf.keras.Model(inputs=combined_input, outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))
     return model, state_input, action_input
@@ -53,7 +53,9 @@ class CriticNetwork(object):
         self.tau = tau
         model, _, _ = create_critic_network(state_size,action_size,learning_rate)
         self.critic_network = model
-        self.target_critic_network = self.critic_network
+
+        target_model, _, _ = create_critic_network(state_size,action_size,learning_rate)
+        self.target_critic_network = target_model
 
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
@@ -77,4 +79,4 @@ class CriticNetwork(object):
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""
-        self.target_critic_network = self.tau*self.critic_network + (1-self.tau)*self.target_critic_network
+        self.target_critic_network.set_weights(self.tau*self.critic_network.get_weights() + (1-self.tau)*self.target_critic_network.get_weights())

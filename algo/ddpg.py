@@ -136,6 +136,7 @@ class DDPG(object):
             store_states = []
             store_actions = []
             while not done:
+                pass
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
                 
