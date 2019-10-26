@@ -110,7 +110,7 @@ class DDPG(object):
             success = False
             while not done:
                 s_vec.append(s_t)
-                a_t = self.actor.model.predict(s_t[None])[0]
+                a_t = self.Actor.actor_network.predict(s_t[None])[0]
                 new_s, r_t, done, info = self.env.step(a_t)
                 if done and "goal" in info["done"]:
                     success = True
@@ -167,15 +167,19 @@ class DDPG(object):
                 new_state = np.array(new_state)
                 self.buffer.add(s_t,action,reward,new_state,done)
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
-                target_actions = self.Actor.target_actor_network.predict(transition_minibatch[:,3][0][None])
+                target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,3]))
 
-                target_Qs = self.Critic.target_critic_network.predict([transition_minibatch[:,3][0][None],target_actions])
-                target_values = transition_minibatch[:,2][None] + GAMMA*target_Qs
+                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                target_values = np.stack(transition_minibatch[:,2]).reshape(-1,1) + GAMMA*target_Qs
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
-                history = self.Critic.critic_network.fit([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]],target_values,epochs=1)
+                history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, epochs=1)
                 #Update Actor Policy
                 self.Critic.update_target()
                 self.Actor.update_target()
+                
+                s_t = new_state
+                step += 1
+                total_reward += reward
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
