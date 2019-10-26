@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from .ReplayBuffer import ReplayBuffer
 from .ActorNetwork import ActorNetwork
 from .CriticNetwork import CriticNetwork
+from tensorboardX import SummaryWriter
 
 BUFFER_SIZE = 1000000
 BATCH_SIZE = 1024
@@ -71,6 +72,7 @@ class DDPG(object):
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
+        self.writer = SummaryWriter('./runs/'+str(LEARNING_RATE_CRITIC))
 
     def generate_burn_in(self):
         num_actions = self.env.action_space.shape[0]
@@ -181,6 +183,9 @@ class DDPG(object):
                 s_t = new_state
                 step += 1
                 total_reward += reward
+
+            self.writer.add_scalar('train/loss', loss, step)
+            self.writer.add_scalar("Training Reward VS Episode", total_reward, i)
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
