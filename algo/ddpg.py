@@ -73,6 +73,7 @@ class DDPG(object):
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
         self.writer = SummaryWriter('./runs/'+str(LEARNING_RATE_CRITIC))
+        self.outfile = outfile_name
 
     def generate_burn_in(self):
         num_actions = self.env.action_space.shape[0]
@@ -176,6 +177,8 @@ class DDPG(object):
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, epochs=1)
                 #Update Actor Policy
+                action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1]))[0]
+                self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
                 self.Critic.update_target()
                 self.Actor.update_target()
                 
@@ -183,8 +186,10 @@ class DDPG(object):
                 s_t = new_state
                 step += 1
                 total_reward += reward
-
-            self.writer.add_scalar('train/loss', loss, step)
+            
+            loss = loss/step
+            
+            self.writer.add_scalar('train/loss', loss, i)
             self.writer.add_scalar("Training Reward VS Episode", total_reward, i)
 
             if hindsight:
@@ -197,7 +202,7 @@ class DDPG(object):
 
             # Logging
             print("Episode %d: Total reward = %d" % (i, total_reward))
-            print("\tTD loss = %.2f" % (loss / step,))
+            print("\tTD loss = %.2f" % (loss,))
             print("\tSteps = %d; Info = %s" % (step, info['done']))
             if i % 100 == 0:
                 successes, mean_rewards = self.evaluate(10)

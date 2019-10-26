@@ -4,6 +4,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
 from keras.activations import relu, linear, tanh
 from keras.initializers import RandomUniform
+from keras import backend as K
 
 HIDDEN1_UNITS = 400
 HIDDEN2_UNITS = 400
@@ -52,8 +53,13 @@ class ActorNetwork(object):
         self.target_actor_network.set_weights(self.actor_network.get_weights())
         self.batch_size = batch_size
 
+        action_gradients = K.placeholder(shape=(None, action_size))
+        params_gradient = [tf.scalar_mul(1/batch_size, x) for x in tf.gradients(self.actor_network.output, self.actor_network.trainable_weights, -action_gradients)]
+        self.gradient_function = K.function([self.actor_network.input, action_gradients], outputs=[tf.ones(1)], updates=[tf.train.AdamOptimizer(learning_rate).apply_gradients(zip(params_gradient, self.actor_network.trainable_weights))])
+
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
+
 
     def train(self, states, action_grads):
         """Updates the actor by applying dQ(s, a) / da.
@@ -64,11 +70,7 @@ class ActorNetwork(object):
             action_grads: a batched numpy array storing the
                 gradients dQ(s, a) / da.
         """
-        with tf.GradientTape() as t:
-            t.watch(states)
-            mu = self.actor_network.predict([states])
-        policy_grads = t.gradient(mu, states)[0]
-        grad_J = (1/self.batch_size) * tf.reduce_sum(policy_grads*action_grads)           #SEE FINAL UPDATE HERE
+        self.gradient_function([states, action_grads])
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""

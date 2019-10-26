@@ -32,7 +32,7 @@ def create_critic_network(state_size, action_size, learning_rate):
     value = Dense(1, activation=linear,kernel_initializer = RandomUniform(minval=-0.0003, maxval=0.0003, seed=None),bias_initializer=RandomUniform(minval=-0.0003, maxval=0.0003, seed=None))(x_2)                  # Add some weight initilization say Xavier
     model = tf.keras.Model(inputs=[state_input, action_input], outputs=value)
     model.compile(loss="mse", optimizer=Adam(lr=learning_rate))
-    return model, state_input, action_input
+    return model, state_input, action_input, value
 
 
 class CriticNetwork(object):
@@ -51,12 +51,14 @@ class CriticNetwork(object):
             learning_rate: (float) learning rate for the critic.
         """
         self.tau = tau
-        model, _, _ = create_critic_network(state_size,action_size,learning_rate)
+        model, self.state_input, self.action_input, self.value = create_critic_network(state_size,action_size,learning_rate)
         self.critic_network = model
 
-        target_model, _, _ = create_critic_network(state_size,action_size,learning_rate)
+        target_model, _, _, _ = create_critic_network(state_size,action_size,learning_rate)
         self.target_critic_network = target_model
         self.target_critic_network.set_weights(self.critic_network.get_weights())
+
+        self.action_grads = K.function([self.critic_network.input[0], self.critic_network.input[1]], K.gradients(self.critic_network.output, [self.critic_network.input[1]]))
 
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
@@ -72,10 +74,14 @@ class CriticNetwork(object):
         Returns:
             grads: a batched numpy array storing the gradients.
         """
-        with tf.GradientTape() as t:
-            t.watch(actions)
-            Q = self.critic_network.predict([states, actions])
-        return t.gradient(Q, actions)[0]
+        # actions = tf.convert_to_tensor(actions)
+        # with tf.GradientTape() as t:
+        #     # t.watch(actions)
+        #     Q = self.critic_network.predict([states, actions], steps=1)
+        # grad = K.gradients(Q, actions)[0]
+        # import pdb; pdb.set_trace()
+        # return grad
+        return self.action_grads([states, actions])
 
 
     def update_target(self):
