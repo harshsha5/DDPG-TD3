@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+import io
 
 from .ReplayBuffer import ReplayBuffer
 from .ActorNetwork import ActorNetwork
@@ -72,7 +73,11 @@ class DDPG(object):
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
-        self.writer = SummaryWriter('./runs/DDPG_'+str(LEARNING_RATE_CRITIC))
+
+        # Defining a custom name for the Tensorboard summary.
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        save_path = "runs/DDPG_"+timestr+'/'
+        self.writer = SummaryWriter(save_path)
         self.outfile = outfile_name
         self.action_range = 1
 
@@ -92,7 +97,7 @@ class DDPG(object):
                 state = np.array(state)
                 done = False 
 
-    def evaluate(self, num_episodes):
+    def evaluate(self, num_episodes, num_iteration):
         """Evaluate the policy. Noise is not added during evaluation.
 
         Args:
@@ -142,8 +147,11 @@ class DDPG(object):
                     plt.legend(loc='lower left', fontsize=28, ncol=3, bbox_to_anchor=(0.1, 1.0))
                 if i == 8:
                     # Comment out the line below to disable plotting.
-                    plt.show()
-        return np.mean(success_vec), np.mean(test_rewards)
+                    # plt.show()
+                    buf = io.BytesIO()
+                    plt.savefig(buf, format='png')
+                    buf.seek(0)
+        return np.mean(success_vec), np.mean(test_rewards), buf
 
     def train(self, num_episodes, hindsight=False):
         """Runs the DDPG algorithm.
@@ -210,7 +218,10 @@ class DDPG(object):
             print("\tTD loss = %.2f" % (loss,))
             print("\tSteps = %d; Info = %s" % (step, info['done']))
             if i % 100 == 0:
-                successes, mean_rewards = self.evaluate(10)
+                successes, mean_rewards, buf = self.evaluate(10, i)
+                image = tf.image.decode_png(buf.getvalue(), channels=3)
+                image = image.eval(session=self.sess)
+                self.writer.add_image('Performance', image, i, dataformats='HWC')
                 print('Evaluation: success = %.2f; return = %.2f' % (successes, mean_rewards))
                 with open(self.outfile, "a") as f:
                     f.write("%.2f, %.2f,\n" % (successes, mean_rewards))
