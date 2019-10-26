@@ -177,6 +177,7 @@ class DDPG(object):
                 self.Critic.update_target()
                 self.Actor.update_target()
                 
+                loss += history.history['loss'][-1]
                 s_t = new_state
                 step += 1
                 total_reward += reward
