@@ -172,22 +172,22 @@ class DDPG(object):
                 new_state = np.array(new_state)
                 self.buffer.add(s_t,action,reward,new_state,done)
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
-                target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,3]))
+                target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,0]))
 
-                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,0]),target_actions])
                 
                 target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, epochs=1)
                 #Update Actor Policy
+                
                 action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1]))[0]
                 self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
+
                 self.Critic.update_target()
                 self.Actor.update_target()
                 
                 loss += history.history['loss'][-1]
-                if(loss>20):
-                    import pdb; pdb.set_trace()
                 s_t = new_state
                 step += 1
                 total_reward += reward
