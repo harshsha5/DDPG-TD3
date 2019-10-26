@@ -11,7 +11,7 @@ BUFFER_SIZE = 1000000
 BATCH_SIZE = 1024
 GAMMA = 0.98                    # Discount for rewards.
 TAU = 0.05                      # Target network update rate.
-LEARNING_RATE_ACTOR = 0.0001
+LEARNING_RATE_ACTOR = 0.001
 LEARNING_RATE_CRITIC = 0.001
 NOISE_MU = 0
 NOISE_SIGMA = 0.05
@@ -43,7 +43,7 @@ class EpsilonNormalActionNoise(object):
             noisy_action: a batched tensor storing the action.
         """
         if np.random.uniform() > self.epsilon:
-            return action + np.random.normal(self.mu, self.sigma)
+            return action + np.random.normal(self.mu, self.sigma,2)
         else:
             return np.random.uniform(-1.0, 1.0, size=action.shape)
 
@@ -72,8 +72,9 @@ class DDPG(object):
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
-        self.writer = SummaryWriter('./runs/'+str(LEARNING_RATE_CRITIC))
+        self.writer = SummaryWriter('./runs/DDPG_'+str(LEARNING_RATE_CRITIC))
         self.outfile = outfile_name
+        self.action_range = 1
 
     def generate_burn_in(self):
         num_actions = self.env.action_space.shape[0]
@@ -85,11 +86,11 @@ class DDPG(object):
             new_state, reward, done, info  = self.env.step(action)
             new_state = np.array(new_state)
             self.buffer.add(state,action,reward,new_state,done)
+            state = new_state
             if(done):
                 state = self.env.reset()
                 state = np.array(state)
                 done = False 
-            state = new_state
 
     def evaluate(self, num_episodes):
         """Evaluate the policy. Noise is not added during evaluation.
@@ -165,7 +166,8 @@ class DDPG(object):
             while not done:
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
-                action = self.ActionNoise(self.Actor.actor_network.predict(s_t[None])[0])
+                action = np.clip(self.ActionNoise(self.Actor.actor_network.predict(s_t[None])[0]), -self.action_range, self.action_range) 
+                
                 new_state, reward, done, info  = self.env.step(action)
                 new_state = np.array(new_state)
                 self.buffer.add(s_t,action,reward,new_state,done)
@@ -173,7 +175,8 @@ class DDPG(object):
                 target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,3]))
 
                 target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
-                target_values = np.stack(transition_minibatch[:,2]).reshape(-1,1) + GAMMA*target_Qs
+                
+                target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, epochs=1)
                 #Update Actor Policy
@@ -183,6 +186,8 @@ class DDPG(object):
                 self.Actor.update_target()
                 
                 loss += history.history['loss'][-1]
+                if(loss>20):
+                    import pdb; pdb.set_trace()
                 s_t = new_state
                 step += 1
                 total_reward += reward

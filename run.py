@@ -14,7 +14,7 @@ def main():
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
     algo = DDPG(env, 'ddpg_log.txt')
-    algo.train(50, hindsight=False)
+    algo.train(1000, hindsight=False)
 
 
 if __name__ == '__main__':
