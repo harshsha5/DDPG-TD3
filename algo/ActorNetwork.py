@@ -52,14 +52,24 @@ class ActorNetwork(object):
         self.target_actor_network = target_model
         self.target_actor_network.set_weights(self.actor_network.get_weights())
         self.batch_size = batch_size
+        self.lr = learning_rate
+        self.action_size = action_size
 
-        action_gradients = K.placeholder(shape=(None, action_size))
-        params_gradient = [tf.scalar_mul(1/batch_size, x) for x in tf.gradients(self.actor_network.output, self.actor_network.trainable_weights, -action_gradients)]
-        self.gradient_function = K.function([self.actor_network.input, action_gradients], outputs=[tf.ones(1)], updates=[tf.train.AdamOptimizer(learning_rate).apply_gradients(zip(params_gradient, self.actor_network.trainable_weights))])
+        # action_gradients = K.placeholder(shape=(None, action_size))
+        # params_gradient = [tf.scalar_mul(1/batch_size, x) for x in tf.gradients(self.actor_network.output, self.actor_network.trainable_weights, -action_gradients)]
+        # self.gradient_function = K.function([self.actor_network.input, action_gradients], outputs=[tf.ones(1)], updates=[tf.train.AdamOptimizer(learning_rate).apply_gradients(zip(params_gradient, self.actor_network.trainable_weights))])
+        self.gradient_function = self.optimizer()
 
         self.sess = sess
         self.sess.run(tf.initialize_all_variables())
 
+    def optimizer(self):
+        """ Actor Optimizer
+        """
+        action_gradients = K.placeholder(shape=(None, self.action_size))
+        params_grad = tf.gradients(self.actor_network.output, self.actor_network.trainable_weights, -action_gradients)
+        grads = zip(params_grad, self.actor_network.trainable_weights)
+        return K.function([self.actor_network.input, action_gradients], outputs=params_grad, updates=[tf.train.AdamOptimizer(self.lr).apply_gradients(grads)])
 
     def train(self, states, action_grads):
         """Updates the actor by applying dQ(s, a) / da.
@@ -70,7 +80,7 @@ class ActorNetwork(object):
             action_grads: a batched numpy array storing the
                 gradients dQ(s, a) / da.
         """
-        self.gradient_function([states, action_grads])
+        return self.gradient_function([states, action_grads])
 
     def update_target(self):
         """Updates the target net using an update rate of tau."""

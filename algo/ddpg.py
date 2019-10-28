@@ -2,23 +2,43 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import io
+import time
+import argparse
+import gym
+import envs
 
-from .ReplayBuffer import ReplayBuffer
-from .ActorNetwork import ActorNetwork
-from .CriticNetwork import CriticNetwork
+from ReplayBuffer import ReplayBuffer
+from ActorNetwork import ActorNetwork
+from CriticNetwork import CriticNetwork
 from tensorboardX import SummaryWriter
 
-BUFFER_SIZE = 1000000
-BATCH_SIZE = 1024
-GAMMA = 0.98                    # Discount for rewards.
-TAU = 0.05                      # Target network update rate.
-LEARNING_RATE_ACTOR = 0.0001
-LEARNING_RATE_CRITIC = 0.001
-NOISE_MU = 0
-NOISE_SIGMA = 0.05
-EPSILON = 0.2
-BURN_IN_MEMORY = 5000
+parser = argparse.ArgumentParser(description='Deep Q Network Argument Parser')
+parser.add_argument('--train',dest='train',type=int,default=1)
+parser.add_argument('--model',dest='model_file',type=str)
+parser.add_argument('--buffer_size',dest='buffer_size',type=int,default=1000000)
+parser.add_argument('--batch_size',dest='batch_size',type=int,default=1024)
+parser.add_argument('--gamma',dest='gamma',type=float,default=0.98)
+parser.add_argument('--tau',dest='tau',type=float,default=0.05)
+parser.add_argument('--lr_actor',dest='lr_actor',type=float,default=0.0001)
+parser.add_argument('--lr_critic',dest='lr_critic',type=float,default=0.001)
+parser.add_argument('--noise_mu',dest='noise_mu',type=float,default=0.0)
+parser.add_argument('--noise_sig',dest='noise_sig',type=float,default=0.05)
+parser.add_argument('--eps',dest='eps',type=float,default=0.2)
+parser.add_argument('--burn_in_size',dest='burn_in_size',type=float,default=5000)
+parser.add_argument('--episodes',dest='episodes',type=float,default=10000)
+args = parser.parse_args()
 
+BUFFER_SIZE = args.buffer_size
+BATCH_SIZE = args.batch_size
+GAMMA = args.gamma                   # Discount for rewards.
+TAU = args.tau                     # Target network update rate.
+LEARNING_RATE_ACTOR = args.lr_actor
+LEARNING_RATE_CRITIC = args.lr_critic
+NOISE_MU = args.noise_mu
+NOISE_SIGMA = args.noise_sig
+EPSILON = args.eps
+BURN_IN_MEMORY = args.burn_in_size
+EPISODES = args.episodes
 
 class EpsilonNormalActionNoise(object):
     """A class for adding noise to the actions for exploration."""
@@ -69,10 +89,10 @@ class DDPG(object):
         self.batch_size = BATCH_SIZE
         self.buffer = ReplayBuffer(BUFFER_SIZE)
         self.burn_in_memory_size = BURN_IN_MEMORY
-        self.Critic = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
+        self.Critic = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_CRITIC)
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
-        self.Actor = ActorNetwork(self.sess,state_dim,action_dim,self.batch_size,TAU,LEARNING_RATE_CRITIC)
+        self.Actor = ActorNetwork(sess=self.sess,state_size=state_dim,action_size=action_dim,batch_size=self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_ACTOR)
 
         # Defining a custom name for the Tensorboard summary.
         timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -120,6 +140,7 @@ class DDPG(object):
             while not done:
                 s_vec.append(s_t)
                 a_t = self.Actor.actor_network.predict(s_t[None])[0]
+                # import pdb; pdb.set_trace()
                 new_s, r_t, done, info = self.env.step(a_t)
                 if done and "goal" in info["done"]:
                     success = True
@@ -151,7 +172,7 @@ class DDPG(object):
                     buf = io.BytesIO()
                     plt.savefig(buf, format='png')
                     buf.seek(0)
-        return np.mean(success_vec), np.mean(test_rewards), buf
+        return np.mean(success_vec), np.mean(test_rewards), np.std(test_rewards) , buf
 
     def train(self, num_episodes, hindsight=False):
         """Runs the DDPG algorithm.
@@ -175,22 +196,28 @@ class DDPG(object):
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
                 action = np.clip(self.ActionNoise(self.Actor.actor_network.predict(s_t[None])[0]), -self.action_range, self.action_range) 
+                # import pdb; pdb.set_trace()
                 
                 new_state, reward, done, info  = self.env.step(action)
                 new_state = np.array(new_state)
                 self.buffer.add(s_t,action,reward,new_state,done)
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
-                target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,0]))
-
-                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,0]),target_actions])
+                
+                target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,3]))
+                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
                 
                 target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
+                reward_indices = np.where(transition_minibatch[:,4]==True)[0]
+                target_values[reward_indices] = target_values[reward_indices] - GAMMA*(target_Qs.reshape(-1)[reward_indices])
+
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
-                history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, epochs=1)
+                history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)
                 #Update Actor Policy
                 
-                action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1]))[0]
-                self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
+                actor_actions = self.Actor.actor_network.predict(np.stack(transition_minibatch[:,0]))
+                action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), actor_actions)[0]
+                gradient_update = self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
+                # import pdb; pdb.set_trace()
 
                 self.Critic.update_target()
                 self.Actor.update_target()
@@ -218,10 +245,12 @@ class DDPG(object):
             print("\tTD loss = %.2f" % (loss,))
             print("\tSteps = %d; Info = %s" % (step, info['done']))
             if i % 100 == 0:
-                successes, mean_rewards, buf = self.evaluate(10, i)
+                successes, mean_rewards, std_rewards, buf = self.evaluate(10, i)
                 image = tf.image.decode_png(buf.getvalue(), channels=3)
                 image = image.eval(session=self.sess)
                 self.writer.add_image('Performance', image, i, dataformats='HWC')
+                self.writer.add_scalar('mean_reward', mean_rewards, i)
+                self.writer.add_scalar('std_reward', std_rewards, i)
                 print('Evaluation: success = %.2f; return = %.2f' % (successes, mean_rewards))
                 with open(self.outfile, "a") as f:
                     f.write("%.2f, %.2f,\n" % (successes, mean_rewards))
@@ -235,3 +264,22 @@ class DDPG(object):
             actions: a list of states.
         """
         raise NotImplementedError
+
+def main():
+    
+    env = gym.make('Pushing2D-v0')
+    # print(env.action_space.sample())
+    # print(env.observation_space)
+    print(env.action_space.high)
+    print(env.action_space.low)
+    # import pdb; pdb.set_trace()
+    # num_states = env.observation_space.shape[0]
+    # num_actions = env.action_space.shape[0]
+    # print("Number of states: ",num_states)
+    # print("Number of actions: ",num_actions)
+    algo = DDPG(env, '../ddpg_log.txt')
+    algo.train(EPISODES, hindsight=False)
+
+
+if __name__ == '__main__':
+    main()
