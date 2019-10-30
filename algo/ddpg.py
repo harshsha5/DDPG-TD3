@@ -26,7 +26,7 @@ parser.add_argument('--noise_mu',dest='noise_mu',type=float,default=0.0)
 parser.add_argument('--noise_sig',dest='noise_sig',type=float,default=0.05)
 parser.add_argument('--eps',dest='eps',type=float,default=0.2)
 parser.add_argument('--burn_in_size',dest='burn_in_size',type=float,default=5000)
-parser.add_argument('--episodes',dest='episodes',type=float,default=10000)
+parser.add_argument('--episodes',dest='episodes',type=int,default=10000)
 parser.add_argument('--policy_update_frequency',dest='policy_update_frequency',type=int,default=2)
 args = parser.parse_args()
 
@@ -101,8 +101,11 @@ class DDPG(object):
         self.policy_update_frequency = 1
         self.Critic2 = None
         if(self.is_TD3):
+            print("TD3 running")
             self.Critic2 = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_CRITIC2)
             self.policy_update_frequency = POLICY_UPDATE_FREQUENCY
+        else:
+            print("DDPG running")
 
         # Defining a custom name for the Tensorboard summary.
         timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -218,10 +221,8 @@ class DDPG(object):
                     target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
                 else:
                     target_Q1s = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
-                    target_Q1s = self.Critic2.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                    target_Q2s = self.Critic2.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
                     target_Qs = np.minimum(target_Q1s ,target_Q2s)
-                    import ipdb
-                    ipdb.set_trace()
                 
                 target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
                 reward_indices = np.where(transition_minibatch[:,4]==True)[0]
@@ -229,7 +230,8 @@ class DDPG(object):
 
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)
-                self.Critic2.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)               
+                if(self.is_TD3):
+                    self.Critic2.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)               
                 #Update Actor Policy
                 
                 if((step+1)%self.policy_update_frequency==0):
@@ -240,7 +242,7 @@ class DDPG(object):
 
                     self.Critic.update_target()
                     self.Actor.update_target()
-                    if(is_TD3):
+                    if(self.is_TD3):
                         self.Critic2.update_target()
                 
                 loss += history.history['loss'][-1]
@@ -298,7 +300,7 @@ def main():
     # num_actions = env.action_space.shape[0]
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
-    is_TD3 = true
+    is_TD3 = False
     algo = DDPG(env, '../ddpg_log.txt',is_TD3)
     algo.train(EPISODES, hindsight=False)
 
