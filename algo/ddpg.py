@@ -21,11 +21,13 @@ parser.add_argument('--gamma',dest='gamma',type=float,default=0.98)
 parser.add_argument('--tau',dest='tau',type=float,default=0.05)
 parser.add_argument('--lr_actor',dest='lr_actor',type=float,default=0.0001)
 parser.add_argument('--lr_critic',dest='lr_critic',type=float,default=0.001)
+parser.add_argument('--lr_critic2',dest='lr_critic2',type=float,default=0.001)
 parser.add_argument('--noise_mu',dest='noise_mu',type=float,default=0.0)
 parser.add_argument('--noise_sig',dest='noise_sig',type=float,default=0.05)
 parser.add_argument('--eps',dest='eps',type=float,default=0.2)
 parser.add_argument('--burn_in_size',dest='burn_in_size',type=float,default=5000)
 parser.add_argument('--episodes',dest='episodes',type=float,default=10000)
+parser.add_argument('--policy_update_frequency',dest='policy_update_frequency',type=int,default=2)
 args = parser.parse_args()
 
 BUFFER_SIZE = args.buffer_size
@@ -34,11 +36,13 @@ GAMMA = args.gamma                   # Discount for rewards.
 TAU = args.tau                     # Target network update rate.
 LEARNING_RATE_ACTOR = args.lr_actor
 LEARNING_RATE_CRITIC = args.lr_critic
+LEARNING_RATE_CRITIC2 = args.lr_critic2
 NOISE_MU = args.noise_mu
 NOISE_SIGMA = args.noise_sig
 EPSILON = args.eps
 BURN_IN_MEMORY = args.burn_in_size
 EPISODES = args.episodes
+POLICY_UPDATE_FREQUENCY = args.policy_update_frequency
 
 class EpsilonNormalActionNoise(object):
     """A class for adding noise to the actions for exploration."""
@@ -72,7 +76,7 @@ class EpsilonNormalActionNoise(object):
 class DDPG(object):
     """A class for running the DDPG algorithm."""
 
-    def __init__(self, env, outfile_name):
+    def __init__(self, env, outfile_name,is_TD3):
         """Initialize the DDPG object.
 
         Args:
@@ -93,6 +97,12 @@ class DDPG(object):
         self.noise_mu = NOISE_MU
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(sess=self.sess,state_size=state_dim,action_size=action_dim,batch_size=self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_ACTOR)
+        self.is_TD3 = is_TD3
+        self.policy_update_frequency = 1
+        self.Critic2 = None
+        if(self.is_TD3):
+            self.Critic2 = CriticNetwork(self.sess,state_dim,action_dim,self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_CRITIC2)
+            self.policy_update_frequency = POLICY_UPDATE_FREQUENCY
 
         # Defining a custom name for the Tensorboard summary.
         timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -204,7 +214,14 @@ class DDPG(object):
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
                 
                 target_actions = self.Actor.target_actor_network.predict(np.stack(transition_minibatch[:,3]))
-                target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                if(not self.is_TD3):
+                    target_Qs = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                else:
+                    target_Q1s = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                    target_Q1s = self.Critic2.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
+                    target_Qs = np.minimum(target_Q1s ,target_Q2s)
+                    import ipdb
+                    ipdb.set_trace()
                 
                 target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
                 reward_indices = np.where(transition_minibatch[:,4]==True)[0]
@@ -214,13 +231,16 @@ class DDPG(object):
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)
                 #Update Actor Policy
                 
-                actor_actions = self.Actor.actor_network.predict(np.stack(transition_minibatch[:,0]))
-                action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), actor_actions)[0]
-                gradient_update = self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
+                if((step+1)%self.policy_update_frequency==0):
+                    actor_actions = self.Actor.actor_network.predict(np.stack(transition_minibatch[:,0]))
+                    action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), actor_actions)[0]
+                    gradient_update = self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
                 # import pdb; pdb.set_trace()
 
-                self.Critic.update_target()
-                self.Actor.update_target()
+                    self.Critic.update_target()
+                    self.Actor.update_target()
+                    if(is_TD3):
+                        self.Critic2.update_target()
                 
                 loss += history.history['loss'][-1]
                 s_t = new_state
@@ -277,7 +297,8 @@ def main():
     # num_actions = env.action_space.shape[0]
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
-    algo = DDPG(env, '../ddpg_log.txt')
+    is_TD3 = true
+    algo = DDPG(env, '../ddpg_log.txt',is_TD3)
     algo.train(EPISODES, hindsight=False)
 
 
