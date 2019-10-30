@@ -231,7 +231,7 @@ class DDPG(object):
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)
                 if(self.is_TD3):
-                    self.Critic2.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)               
+                    history2 = self.Critic2.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)               
                 #Update Actor Policy
                 
                 if((step+1)%self.policy_update_frequency==0):
@@ -246,6 +246,7 @@ class DDPG(object):
                         self.Critic2.update_target()
                 
                 loss += history.history['loss'][-1]
+                loss += history2.history['loss'][-1]
                 s_t = new_state
                 step += 1
                 total_reward += reward
@@ -300,7 +301,7 @@ def main():
     # num_actions = env.action_space.shape[0]
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
-    is_TD3 = False
+    is_TD3 = True
     algo = DDPG(env, '../ddpg_log.txt',is_TD3)
     algo.train(EPISODES, hindsight=False)
 
