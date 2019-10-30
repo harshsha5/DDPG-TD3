@@ -27,7 +27,8 @@ parser.add_argument('--noise_sig',dest='noise_sig',type=float,default=0.05)
 parser.add_argument('--eps',dest='eps',type=float,default=0.2)
 parser.add_argument('--burn_in_size',dest='burn_in_size',type=float,default=5000)
 parser.add_argument('--episodes',dest='episodes',type=int,default=10000)
-parser.add_argument('--policy_update_frequency',dest='policy_update_frequency',type=int,default=2)
+parser.add_argument('--policy_update_frequency',dest='policy_update_frequency',type=int,default=1)
+parser.add_argument('--td3',dest='td3',type=bool,default=False)
 args = parser.parse_args()
 
 BUFFER_SIZE = args.buffer_size
@@ -98,7 +99,7 @@ class DDPG(object):
         self.Noise_sigma = NOISE_SIGMA*(env.action_space.high[0] - env.action_space.low[0])
         self.Actor = ActorNetwork(sess=self.sess,state_size=state_dim,action_size=action_dim,batch_size=self.batch_size,tau=TAU,learning_rate=LEARNING_RATE_ACTOR)
         self.is_TD3 = is_TD3
-        self.policy_update_frequency = 1
+        self.policy_update_frequency = 1 #If not using TD3 hard setting freq to 1
         self.Critic2 = None
         if(self.is_TD3):
             print("TD3 running")
@@ -301,8 +302,8 @@ def main():
     # num_actions = env.action_space.shape[0]
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
-    is_TD3 = True
-    algo = DDPG(env, '../ddpg_log.txt',is_TD3)
+    
+    algo = DDPG(env, '../ddpg_log.txt', args.td3)
     algo.train(EPISODES, hindsight=False)
 
 
