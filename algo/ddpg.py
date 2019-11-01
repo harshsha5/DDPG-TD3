@@ -1,3 +1,5 @@
+import copy
+
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,7 +27,7 @@ parser.add_argument('--noise_mu',dest='noise_mu',type=float,default=0.0)
 parser.add_argument('--noise_sig',dest='noise_sig',type=float,default=0.05)
 parser.add_argument('--eps',dest='eps',type=float,default=0.2)
 parser.add_argument('--burn_in_size',dest='burn_in_size',type=float,default=5000)
-parser.add_argument('--episodes',dest='episodes',type=float,default=10000)
+parser.add_argument('--episodes',dest='episodes',type=float,default=20000)
 args = parser.parse_args()
 
 BUFFER_SIZE = args.buffer_size
@@ -72,7 +74,7 @@ class EpsilonNormalActionNoise(object):
 class DDPG(object):
     """A class for running the DDPG algorithm."""
 
-    def __init__(self, env, outfile_name):
+    def __init__(self, env, outfile_name, hindsight):
         """Initialize the DDPG object.
 
         Args:
@@ -84,7 +86,7 @@ class DDPG(object):
         np.random.seed(1337)
         self.env = env
 
-        self.sess = tf.Session()
+        self.sess = tf.compat.v1.Session()
         tf.keras.backend.set_session(self.sess)
         self.batch_size = BATCH_SIZE
         self.buffer = ReplayBuffer(BUFFER_SIZE)
@@ -96,7 +98,12 @@ class DDPG(object):
 
         # Defining a custom name for the Tensorboard summary.
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        save_path = "runs/DDPG_"+timestr+'/'
+
+        if hindsight:
+            save_path = "runs/HER_DDPG_"+timestr+'/'
+        else:
+            save_path = "runs/DDPG_"+timestr+'/'
+
         self.writer = SummaryWriter(save_path)
         self.outfile = outfile_name
         self.action_range = 1
@@ -189,9 +196,12 @@ class DDPG(object):
             done = False
             step = 0
             loss = 0
-            store_states = []
+            store_current_states = []
             store_actions = []
+            store_dones = []
+
             self.ActionNoise = EpsilonNormalActionNoise(self.noise_mu,self.Noise_sigma,EPSILON)
+
             while not done:
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
@@ -200,6 +210,11 @@ class DDPG(object):
                 
                 new_state, reward, done, info  = self.env.step(action)
                 new_state = np.array(new_state)
+
+                store_current_states.append(s_t)
+                store_actions.append(action)
+                store_dones.append(done)
+
                 self.buffer.add(s_t,action,reward,new_state,done)
                 transition_minibatch = np.asarray(self.buffer.get_batch(self.batch_size))
                 
@@ -212,8 +227,8 @@ class DDPG(object):
 
                 # present_values = self.Critic.critic_network.predict([transition_minibatch[:,0][0][None],transition_minibatch[:,1][0][None]])
                 history = self.Critic.critic_network.fit([np.stack(transition_minibatch[:,0]), np.stack(transition_minibatch[:,1])], target_values, batch_size=self.batch_size, epochs=1, verbose=0)
+
                 #Update Actor Policy
-                
                 actor_actions = self.Actor.actor_network.predict(np.stack(transition_minibatch[:,0]))
                 action_grads = self.Critic.gradients(np.stack(transition_minibatch[:,0]), actor_actions)[0]
                 gradient_update = self.Actor.train(np.stack(transition_minibatch[:,0]), action_grads)
@@ -226,19 +241,28 @@ class DDPG(object):
                 s_t = new_state
                 step += 1
                 total_reward += reward
-            
-            loss = loss/step
-            
-            self.writer.add_scalar('train/loss', loss, i)
-            self.writer.add_scalar("Training Reward VS Episode", total_reward, i)
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
-                store_states.append(new_s)
-                self.add_hindsight_replay_experience(store_states,
-                                                     store_actions)
-            del store_states, store_actions
-            store_states, store_actions = [], []
+                store_current_states.append(new_state)
+                store_current_states_copy = copy.deepcopy(store_current_states)
+                her_states, her_rewards = self.env.apply_hindsight(store_current_states_copy)
+                # her_states, her_rewards, her_actions = self.add_hindsight_replay_experience(store_current_states, store_actions)
+                for k in range(len(her_states)-1):
+                    if her_rewards[k] == 0:
+                        self.buffer.add(her_states[k], store_actions[k], her_rewards[k], her_states[k+1], True)
+                        break
+                    else:
+                        self.buffer.add(her_states[k], store_actions[k], her_rewards[k], her_states[k+1], store_dones[k])
+
+            del store_current_states, store_actions, store_dones
+            store_states, store_actions, store_dones = [], [], []
+
+            loss = loss/step
+
+            self.writer.add_scalar('train/loss', loss, i)
+            self.writer.add_scalar("Training Reward VS Episode", total_reward, i)
+
 
             # Logging
             print("Episode %d: Total reward = %d" % (i, total_reward))
@@ -263,22 +287,37 @@ class DDPG(object):
             states: a list of states.
             actions: a list of states.
         """
-        raise NotImplementedError
+
+        her_states, her_rewards = self.env.apply_hindsight(states)
+
+        her_actions = actions
+
+        # print('her_states size: ', len(her_states))
+        # print('her_rewardssize: ', len(her_rewards))
+        # print('her_states: ', her_states)
+        # print('her_rewards: ', her_rewards)
+
+        return her_states, her_rewards, her_actions
 
 def main():
     
     env = gym.make('Pushing2D-v0')
     # print(env.action_space.sample())
     # print(env.observation_space)
+
     print(env.action_space.high)
     print(env.action_space.low)
+
     # import pdb; pdb.set_trace()
     # num_states = env.observation_space.shape[0]
     # num_actions = env.action_space.shape[0]
     # print("Number of states: ",num_states)
     # print("Number of actions: ",num_actions)
-    algo = DDPG(env, '../ddpg_log.txt')
-    algo.train(EPISODES, hindsight=False)
+
+    hindsight = False
+
+    algo = DDPG(env, '../ddpg_log.txt', hindsight=hindsight)
+    algo.train(EPISODES, hindsight=hindsight)
 
 
 if __name__ == '__main__':
