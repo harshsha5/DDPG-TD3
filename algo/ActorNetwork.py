@@ -64,8 +64,6 @@ class ActorNetwork(object):
         self.sess.run(tf.initialize_all_variables())
 
     def optimizer(self):
-        """ Actor Optimizer
-        """
         action_gradients = K.placeholder(shape=(None, self.action_size))
         params_grad = tf.gradients(self.actor_network.output, self.actor_network.trainable_weights, -action_gradients)
         grads = zip(params_grad, self.actor_network.trainable_weights)

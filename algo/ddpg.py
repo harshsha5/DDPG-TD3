@@ -206,6 +206,7 @@ class DDPG(object):
             store_states = []
             store_actions = []
             self.ActionNoise = EpsilonNormalActionNoise(self.noise_mu,self.Noise_sigma,EPSILON)
+            policy_error = []
             while not done:
                 # Collect one episode of experience, saving the states and actions
                 # to store_states and store_actions, respectively.
@@ -224,6 +225,8 @@ class DDPG(object):
                     target_Q1s = self.Critic.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
                     target_Q2s = self.Critic2.target_critic_network.predict([np.stack(transition_minibatch[:,3]),target_actions])
                     target_Qs = np.minimum(target_Q1s ,target_Q2s)
+                
+                policy_error.append(np.mean(target_Qs))
                 
                 target_values = np.stack(transition_minibatch[:,2]) + GAMMA*target_Qs.reshape(-1)
                 reward_indices = np.where(transition_minibatch[:,4]==True)[0]
@@ -247,7 +250,8 @@ class DDPG(object):
                         self.Critic2.update_target()
                 
                 loss += history.history['loss'][-1]
-                loss += history2.history['loss'][-1]
+                if(self.is_TD3):
+                    loss += history2.history['loss'][-1]
                 s_t = new_state
                 step += 1
                 total_reward += reward
@@ -256,6 +260,7 @@ class DDPG(object):
             
             self.writer.add_scalar('train/loss', loss, i)
             self.writer.add_scalar("Training Reward VS Episode", total_reward, i)
+            self.writer.add_scalar('new_metric', -np.mean(policy_error), i)
 
             if hindsight:
                 # For HER, we also want to save the final next_state.
